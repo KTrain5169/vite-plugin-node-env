@@ -1,5 +1,5 @@
 import { defineConfig } from "vite-plus";
-import { node } from "vite-plugin-node";
+import { node } from "@ktrain5369/vite-plugin-node-env";
 
 export default defineConfig({
   plugins: [
