@@ -19,6 +19,5 @@ jobs:
           node-version-file: "./package.json"
           cache: true
           run-install: true
-          sfw: true
       - run: vp check
       - run: vp build
