@@ -7,6 +7,8 @@ export default defineConfig({
       tsgo: true,
     },
     exports: true,
+    publint: true,
+    attw: true,
   },
   lint: {
     options: {
