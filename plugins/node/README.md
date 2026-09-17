@@ -26,3 +26,6 @@ export default {
   },
 };
 ```
+
+Note that by default this configures the `server` environment in Vite, not `ssr`. This is because usually, most standalone Node.js backend servers aren't written with SSR in mind, so to prevent conflicts with other possible plugins, the default configured environment is changed.
+You can configure it to target `ssr` (or any ohter environment) with `node({ environment: 'ssr' })`
