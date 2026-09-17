@@ -1,23 +1,28 @@
-# vite-plus-starter
+# `@ktrain5369/vite-plugin-node-env`
 
-A starter for creating a Vite Plus project.
+Vite plugin to run web standard (fetch) servers in a Node worker thread environment.
 
-## Development
+## Usage
 
-- Install dependencies:
+```ts
+import { defineConfig } from "vite";
+import { node } from "vite-plugin-node";
 
-```bash
-vp install
+export default defineConfig({
+  plugins: [
+    node({
+      entry: "src/server.ts",
+    }),
+  ],
+});
 ```
 
-- Run the unit tests:
+where `src/server.ts` follows the `fetch` handler pattern:
 
-```bash
-vp test
-```
-
-- Build the library:
-
-```bash
-vp pack
+```ts
+export default {
+  fetch(req: Request) {
+    return new Response();
+  },
+};
 ```

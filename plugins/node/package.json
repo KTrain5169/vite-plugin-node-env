@@ -1,5 +1,5 @@
 {
-  "name": "vite-plugin-node",
+  "name": "@ktrain5369/vite-plugin-node-env",
   "version": "0.0.0",
   "description": "Simple Vite plugin for running Node backends as an environment",
   "homepage": "https://github.com/KTrain5169/vite-plugin-node#readme",

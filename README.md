@@ -1,3 +1,3 @@
-# vite-plugin-node
+# vite-plugin-node-env repo
 
-Vite plugin to run web standard (fetch) servers in an environment.
+You are probably looking for [this](./plugins/node/).
