@@ -4,7 +4,7 @@ import { node } from "vite-plugin-node";
 export default defineConfig({
   plugins: [
     node({
-      entry: "src/server.ts",
+      entry: "src/index.ts",
     }),
   ],
 });

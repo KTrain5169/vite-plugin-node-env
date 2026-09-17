@@ -204,6 +204,10 @@ importers:
         version: 0.3.0(@types/node@26.6.1)(@voidzero-dev/vite-plus-core@0.3.0(@types/node@26.6.1)(jiti@2.7.0)(typescript@6.0.3)(yaml@2.9.1))(jiti@2.7.0)(typescript@6.0.3)(yaml@2.9.1)
 
   plugins/node:
+    dependencies:
+      '@rolldown/pluginutils':
+        specifier: ^1.0.1
+        version: 1.0.1
     devDependencies:
       '@types/node':
         specifier: ^26.1.1
@@ -616,6 +620,9 @@ packages:
 
   '@quansync/fs@1.0.0':
     resolution: {integrity: sha512-4TJ3DFtlf1L5LDMaM6CanJ/0lckGNtJcMjQ1NAV6zDmA0tEHKZtxNKin8EgPaVX1YzljbxckyT2tJrpQKAtngQ==}
+
+  '@rolldown/pluginutils@1.0.1':
+    resolution: {integrity: sha512-2j9bGt5Jh8hj+vPtgzPtl72j0yRxHAyumoo6TNfAjsLB04UtpSvPbPcDcBMxz7n+9CYB0c1GxQFxYRg2jimqGw==}
 
   '@standard-schema/spec@1.1.0':
     resolution: {integrity: sha512-l2aFy5jALhniG5HgqrD6jXLi/rUWrKvqN/qJx6yoJsgKhblVd+iqqU4RCXavm/jPityDo5TCvKMnpjKnOriy0w==}
@@ -1742,6 +1749,8 @@ snapshots:
   '@quansync/fs@1.0.0':
     dependencies:
       quansync: 1.0.0
+
+  '@rolldown/pluginutils@1.0.1': {}
 
   '@standard-schema/spec@1.1.0': {}
 
