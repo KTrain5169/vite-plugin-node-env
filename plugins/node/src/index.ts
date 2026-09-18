@@ -133,7 +133,7 @@ export function node(opts: PluginOptions): Plugin {
                 input: virtualModuleId,
 
                 output: {
-                  entryFileNames: "index.mjs",
+                  entryFileNames: serverEntryFileName,
                   format: "esm",
                 },
 
@@ -219,7 +219,7 @@ export function node(opts: PluginOptions): Plugin {
   };
 }
 
-const serverEntryFileName = "server.mjs";
+const serverEntryFileName = "module.mjs";
 
 export function resolvePreviewEntry(server: PreviewServer, environmentName: string): string {
   const environment = server.config.environments[environmentName];
