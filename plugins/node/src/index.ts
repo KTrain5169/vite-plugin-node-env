@@ -6,6 +6,8 @@ import {
   type NodeRuntime,
   virtualModuleId,
   resolvedVirtualModuleId,
+  virtualServerId,
+  resolvedVirtualServerId,
 } from "./consts.ts";
 import { createNodeEnvironment, serializeRequest } from "./server.ts";
 import { createNodeRuntime } from "./node-runtime.ts";
@@ -42,6 +44,123 @@ if (typeof fetch !== 'function') {
 }
 `;
 }
+
+const serverCliCode = `
+import { fetch } from '${virtualModuleId}'
+import { parseArgs } from "node:util";
+import { serve } from "srvx";
+import { loggerMiddleware } from "srvx/log";
+
+const args = parseArgs({
+  options: {
+    host: {
+      type: "string",
+      short: "H",
+      default: "localhost",
+    },
+    port: {
+      type: "string",
+      short: "p",
+      default: "3000",
+    },
+    protocol: {
+      type: "string",
+      default: "http",
+    },
+    "tls-cert": {
+      type: "string",
+    },
+    "tls-key": {
+      type: "string",
+    },
+    "tls-passphrase": {
+      type: "string",
+    },
+    proxy: {
+      type: "string",
+      default: ["none"],
+      multiple: true,
+    },
+    help: {
+      type: "boolean",
+      short: "h",
+    },
+  },
+});
+
+const helpText = \`
+Options:
+  --host, -H <host>          Host to bind to (default: localhost)
+  --port, -p <port>          Port to listen on (default: 3000)
+  --protocol <protocol>      http | https
+  --tls-cert <path>          TLS certificate
+  --tls-key <path>           TLS private key
+  --tls-passphrase <string>  TLS passphrase
+  --proxy                    Trust proxy headers (can pass multiple, 'all' blindly trusts, 'none' does not trust)
+  -h, --help                 Show help
+\`;
+
+if (args.values.help) {
+  console.log(helpText);
+  process.exit(0);
+}
+
+const port = Number(args.values.port);
+
+const proxies = args.values.proxy;
+
+if (args.values.protocol !== "http" && args.values.protocol !== "https") {
+  throw new Error("Invalid protocol passed! Expected either 'http' or 'https'.");
+}
+
+function parseProxyArgs(args) {
+  if (proxies.length > 1) {
+    proxies.forEach((v) => {
+      if (v === "none" || v === "all") {
+        throw new Error(
+          "Multiple --proxy flags passed but one or more are either 'none' or 'all'!",
+        );
+      }
+    });
+    return args;
+  } else {
+    const arg = args[0];
+
+    switch (arg) {
+      case "none":
+        return false;
+      case "all":
+        return true;
+      default:
+        return [arg];
+    }
+  }
+}
+
+const termHandler = async () => {
+    await server.close()
+}
+
+console.log(\`🚀 Starting server...\`)
+
+const server = serve({
+  fetch,
+  middleware: [loggerMiddleware()],
+  hostname: args.values.host,
+  port,
+  protocol: args.values.protocol,
+  trustProxy: parseProxyArgs(args.values.proxy),
+  tls: {
+    cert: args.values["tls-cert"],
+    key: args.values["tls-key"],
+    passphrase: args.values["tls-passphrase"],
+  },
+});
+
+await server.ready()
+process.once('SIGINT', termHandler);
+process.once('SIGTERM', termHandler);
+`;
 
 function getDevCode(entryPath: string, entryId: string, serverType: string, _opts: PluginOptions) {
   const isNode = serverType === "node";
@@ -130,10 +249,12 @@ export function node(opts: PluginOptions): Plugin {
               outDir: `dist/${environmentName}`,
 
               rolldownOptions: {
-                input: virtualModuleId,
+                input: {
+                  index: virtualServerId,
+                  module: virtualModuleId,
+                },
 
                 output: {
-                  entryFileNames: serverEntryFileName,
                   format: "esm",
                 },
 
@@ -153,6 +274,8 @@ export function node(opts: PluginOptions): Plugin {
     resolveId(id) {
       if (id === virtualModuleId) {
         return resolvedVirtualModuleId;
+      } else if (id === virtualServerId) {
+        return resolvedVirtualServerId;
       }
     },
 
@@ -160,27 +283,31 @@ export function node(opts: PluginOptions): Plugin {
       // Restricts the handler to our virtual module id so Rolldown's native
       // filter can skip calling into JS for every other module.
       filter: {
-        id: exactRegex(resolvedVirtualModuleId),
+        id: [exactRegex(resolvedVirtualModuleId), exactRegex(resolvedVirtualServerId)],
       },
 
       async handler(id) {
-        // A bare relative path like "src/index.ts" (no leading "./" or "/") would
-        // otherwise be mistaken for a bare module specifier by the resolver.
-        const entryPath = isAbsolute(opts.entry) ? opts.entry : resolvePath(root, opts.entry);
+        if (id === resolvedVirtualModuleId) {
+          // A bare relative path like "src/index.ts" (no leading "./" or "/") would
+          // otherwise be mistaken for a bare module specifier by the resolver.
+          const entryPath = isAbsolute(opts.entry) ? opts.entry : resolvePath(root, opts.entry);
 
-        const resolved = await this.resolve(entryPath, id);
+          const resolved = await this.resolve(entryPath, id);
 
-        if (!resolved) {
-          throw new Error(`Could not resolve backend entry: ${opts.entry}`);
+          if (!resolved) {
+            throw new Error(`Could not resolve backend entry: ${opts.entry}`);
+          }
+
+          const entryId = resolved.id;
+
+          if (command === "build") {
+            return getBuildCode(entryPath, serverType, opts);
+          }
+
+          return getDevCode(entryPath, entryId, serverType, opts);
+        } else if (id === resolvedVirtualServerId) {
+          return serverCliCode;
         }
-
-        const entryId = resolved.id;
-
-        if (command === "build") {
-          return getBuildCode(entryPath, serverType, opts);
-        }
-
-        return getDevCode(entryPath, entryId, serverType, opts);
       },
     },
 
@@ -219,7 +346,7 @@ export function node(opts: PluginOptions): Plugin {
   };
 }
 
-const serverEntryFileName = "module.mjs";
+const serverEntryFileName = "module.js";
 
 export function resolvePreviewEntry(server: PreviewServer, environmentName: string): string {
   const environment = server.config.environments[environmentName];

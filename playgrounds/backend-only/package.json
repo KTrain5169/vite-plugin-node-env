@@ -9,11 +9,12 @@
     "preview": "vp preview"
   },
   "dependencies": {
-    "hono": "^4.13.8"
+    "hono": "^4.13.8",
+    "srvx": "^1.0.5"
   },
   "devDependencies": {
     "@ktrain5369/vite-plugin-node-env": "workspace:*",
-    "typescript": "~6.0.2",
+    "typescript": "~7.0.2",
     "vite": "catalog:",
     "vite-plus": "catalog:"
   }

@@ -32,20 +32,26 @@
     "prepare": "vp run build"
   },
   "dependencies": {
-    "@rolldown/pluginutils": "^1.0.1",
-    "srvx": "^1.0.5"
+    "@rolldown/pluginutils": "^1.0.1"
   },
   "devDependencies": {
     "@arethetypeswrong/core": "^0.18.5",
     "@types/node": "^26.1.1",
     "bumpp": "^11.1.0",
     "publint": "^0.3.24",
+    "srvx": "^1.0.5",
     "typescript": "^7.0.2",
     "vite": "catalog:",
     "vite-plus": "catalog:"
   },
   "peerDependencies": {
+    "srvx": "^1.0.5",
     "vite": "^8.0.0"
+  },
+  "peerDependenciesMeta": {
+    "srvx": {
+      "optional": true
+    }
   },
   "engines": {
     "node": "^24 || ^26"
