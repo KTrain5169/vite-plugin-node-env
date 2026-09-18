@@ -105,7 +105,7 @@ export function node(opts: PluginOptions): Plugin {
           if (serverType === "node") {
             return `
 import { toFetchHandler } from 'srvx/node'
-const entry = await import(${entryPath})
+const entry = await import(${JSON.stringify(entryPath)})
 
 export const handler = entry.default
 
@@ -117,7 +117,7 @@ export const fetch = toFetchHandler(handler)
 `;
           }
           return `
-const entry = await import(${entryPath})
+const entry = await import(${JSON.stringify(entryPath)})
 
 export const fetch =
   entry.default?.fetch ?? entry.fetch
@@ -131,7 +131,7 @@ if (typeof fetch !== 'function') {
         if (serverType === "node") {
           return `
 import { fetchNodeHandler } from 'srvx/node'
-const entry = await import(${entryPath})
+const entry = await import(${JSON.stringify(entryPath)})
 
 let current = entry.default ?? entry
 
@@ -172,7 +172,7 @@ export function fetch(request) {
         }
 
         return `
-const entry = await import(${entryPath})
+const entry = await import(${JSON.stringify(entryPath)})
 
 let current = entry.default ?? entry
 
