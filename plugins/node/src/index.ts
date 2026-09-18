@@ -127,7 +127,6 @@ export function node(opts: PluginOptions): Plugin {
               },
             },
             build: {
-              ssr: true,
               outDir: `dist/${environmentName}`,
 
               rolldownOptions: {
