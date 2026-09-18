@@ -1,6 +1,5 @@
-import { isAbsolute, resolve, resolve as resolvePath } from "node:path";
-import type { Connect, PreviewServer } from "vite";
-import { DevEnvironment, type Plugin } from "vite";
+import { isAbsolute, resolve as resolvePath } from "node:path";
+import { DevEnvironment, type Plugin, type Connect, type PreviewServer } from "vite";
 import { exactRegex } from "@rolldown/pluginutils";
 import {
   type PluginOptions,
@@ -17,6 +16,7 @@ export interface FetchStandard {
 }
 
 export function node(opts: PluginOptions): Plugin {
+  const serverType = opts.serverType ?? "web";
   const environmentName = opts.environment ?? "server";
 
   const runtimes = new WeakMap<DevEnvironment, NodeRuntime>();
@@ -35,7 +35,12 @@ export function node(opts: PluginOptions): Plugin {
 
     config() {
       return {
-        builder: {},
+        appType: "custom",
+        builder: {
+          async buildApp(builder) {
+            await builder.build(builder.environments[environmentName]);
+          },
+        },
         environments: {
           [environmentName]: {
             consumer: "server",
@@ -97,20 +102,81 @@ export function node(opts: PluginOptions): Plugin {
         const entryId = resolved.id;
 
         if (command === "build") {
+          if (serverType === "node") {
+            return `
+import { toFetchHandler } from 'srvx/node'
+const entry = await import(${entryPath})
+
+export const handler = entry.default
+
+if (typeof handler !== 'function') {
+  throw new TypeError("default export is not callable")
+}
+
+export const fetch = toFetchHandler(handler)
+`;
+          }
           return `
-import * as entry from ${JSON.stringify(opts.entry)}
+const entry = await import(${entryPath})
 
 export const fetch =
   entry.default?.fetch ?? entry.fetch
+
+if (typeof fetch !== 'function') {
+  throw new TypeError("no fetch function exported")
+}
+`;
+        }
+
+        if (serverType === "node") {
+          return `
+import { fetchNodeHandler } from 'srvx/node'
+const entry = await import(${entryPath})
+
+let current = entry.default ?? entry
+
+if (typeof current !== 'function') {
+  throw new TypeError(
+    ${JSON.stringify(`${opts.entry} must default-export an object containing fetch()`)}
+  )
+}
+
+if (import.meta.hot) {
+  import.meta.hot.accept(
+    ${JSON.stringify(entryId)},
+    (next) => {
+      const nextApp = next?.default
+
+      if (
+        !nextApp ||
+        typeof nextApp.fetch !== 'function'
+      ) {
+        console.error(
+          ${JSON.stringify(
+            `${opts.entry} HMR update was rejected because its default export does not contain fetch()`,
+          )}
+        )
+
+        return
+      }
+
+      current = nextApp
+    },
+  )
+}
+
+export function fetch(request) {
+  return fetchNodeHandler(current)
+}
 `;
         }
 
         return `
-import * as entry from ${JSON.stringify(entryId)}
+const entry = await import(${entryPath})
 
-let current = entry.default
+let current = entry.default ?? entry
 
-if (!current || typeof current.fetch !== 'function') {
+if (typeof current.fetch !== 'function') {
   throw new TypeError(
     ${JSON.stringify(`${opts.entry} must default-export an object containing fetch()`)}
   )
@@ -191,7 +257,7 @@ export function resolvePreviewEntry(server: PreviewServer, environmentName: stri
     throw new Error(`Environment "${environmentName}" does not exist`);
   }
 
-  return resolve(server.config.root, environment.build.outDir, serverEntryFileName);
+  return resolvePath(server.config.root, environment.build.outDir, serverEntryFileName);
 }
 
 function createNodeRequestHandler(runtime: NodeRuntime) {

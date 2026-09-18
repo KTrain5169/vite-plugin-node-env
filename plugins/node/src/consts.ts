@@ -3,6 +3,7 @@ import type { WebSocketServer } from "vite";
 export interface PluginOptions {
   entry: string;
   environment?: string;
+  serverType?: "node" | "web";
 }
 
 export interface RequestMessage {
