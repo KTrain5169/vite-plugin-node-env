@@ -1,6 +1,6 @@
-# vite-plugin-node
+# vite-plugin-node-env
 
-`vite-plugin-node` is a Vite plugin for building Node servers while utilizing Vite as the runner. This allows backend developers to gain access to HMR, Vite plugins, and other features of Vite.
+`vite-plugin-node-env` is a Vite plugin for building Node servers while utilizing Vite as the runner. This allows backend developers to gain access to HMR, Vite plugins, and other features of Vite.
 
 <!--VITE PLUS START-->
 

@@ -45,7 +45,7 @@ export interface CreateDevEnvironmentContext {
   ws: WebSocketServer;
 }
 
-export const virtualModuleId = "virtual:vite-plugin-node";
+export const virtualModuleId = "virtual:vite-plugin-node-env";
 export const resolvedVirtualModuleId: string = `\0${virtualModuleId}`;
 
 export interface NodeRuntime {

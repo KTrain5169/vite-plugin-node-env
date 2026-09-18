@@ -6,7 +6,7 @@ Vite plugin to run web standard (fetch) servers in a Node worker thread environm
 
 ```ts
 import { defineConfig } from "vite";
-import { node } from "vite-plugin-node";
+import { node } from "vite-plugin-node-env";
 
 export default defineConfig({
   plugins: [
