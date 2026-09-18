@@ -20,4 +20,4 @@ jobs:
           cache: true
           run-install: true
       - run: vp check
-      - run: vp build
+      - run: vpr -r build
