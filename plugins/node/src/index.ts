@@ -167,7 +167,7 @@ function getDevCode(entryPath: string, entryId: string, serverType: string, _opt
 
   return `
 ${isNode ? "import { fetchNodeHandler } from 'srvx/node'" : ""}
-const entry = await import(${entryPath})
+const entry = await import(${JSON.stringify(entryPath)})
 
 let current = entry.default ?? entry
 
@@ -324,11 +324,13 @@ export function node(opts: PluginOptions): Plugin {
         throw new Error(`No runtime exists for environment "${environmentName}"`);
       }
 
-      server.middlewares.use(createNodeRequestHandler(runtime));
+      return () => {
+        server.middlewares.use(createNodeRequestHandler(runtime));
 
-      server.httpServer?.once("close", () => {
-        void runtime.close();
-      });
+        server.httpServer?.once("close", () => {
+          void runtime.close();
+        });
+      };
     },
 
     configurePreviewServer(server) {
@@ -337,11 +339,13 @@ export function node(opts: PluginOptions): Plugin {
         entry: resolvePreviewEntry(server, environmentName),
       });
 
-      server.middlewares.use(createNodeRequestHandler(node.runtime));
+      return () => {
+        server.middlewares.use(createNodeRequestHandler(node.runtime));
 
-      server.httpServer?.once("close", () => {
-        void node.runtime.close();
-      });
+        server.httpServer?.once("close", () => {
+          void node.runtime.close();
+        });
+      };
     },
   };
 }

@@ -98,7 +98,7 @@ requestPort.on("message", async (message: RequestMessage) => {
 
 requestPort.start();
 
-parentPort!.postMessage({
+requestPort.postMessage({
   type: "ready",
 });
 
