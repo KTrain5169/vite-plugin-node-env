@@ -1,4 +1,5 @@
-import { isAbsolute, resolve as resolvePath } from "node:path";
+import { isAbsolute, resolve, resolve as resolvePath } from "node:path";
+import type { Connect, PreviewServer } from "vite";
 import { DevEnvironment, type Plugin } from "vite";
 import { exactRegex } from "@rolldown/pluginutils";
 import {
@@ -8,6 +9,8 @@ import {
   resolvedVirtualModuleId,
 } from "./consts.ts";
 import { createNodeEnvironment, serializeRequest } from "./server.ts";
+import { createNodeRuntime } from "./node-runtime.ts";
+import type { IncomingMessage, ServerResponse } from "node:http";
 
 export interface FetchStandard {
   fetch(request: Request): Response | Promise<Response>;
@@ -18,6 +21,8 @@ export function node(opts: PluginOptions): Plugin {
 
   const runtimes = new WeakMap<DevEnvironment, NodeRuntime>();
 
+  let command: string;
+
   let root = process.cwd();
 
   return {
@@ -25,12 +30,15 @@ export function node(opts: PluginOptions): Plugin {
 
     configResolved(config) {
       root = config.root;
+      command = config.command;
     },
 
     config() {
       return {
+        builder: {},
         environments: {
           [environmentName]: {
+            consumer: "server",
             dev: {
               createEnvironment(name, config, context) {
                 const { environment, runtime } = createNodeEnvironment(name, config, context);
@@ -38,6 +46,19 @@ export function node(opts: PluginOptions): Plugin {
                 runtimes.set(environment, runtime);
 
                 return environment;
+              },
+            },
+            build: {
+              ssr: true,
+              outDir: `dist/${environmentName}`,
+
+              rolldownOptions: {
+                input: virtualModuleId,
+
+                output: {
+                  entryFileNames: "index.mjs",
+                  format: "esm",
+                },
               },
             },
           },
@@ -74,6 +95,15 @@ export function node(opts: PluginOptions): Plugin {
         }
 
         const entryId = resolved.id;
+
+        if (command === "build") {
+          return `
+import * as entry from ${JSON.stringify(opts.entry)}
+
+export const fetch =
+  entry.default?.fetch ?? entry.fetch
+`;
+        }
 
         return `
 import * as entry from ${JSON.stringify(entryId)}
@@ -130,45 +160,78 @@ export function fetch(request) {
         throw new Error(`No runtime exists for environment "${environmentName}"`);
       }
 
-      server.middlewares.use(async (req, res, next) => {
-        const url = req.url ?? "/";
-
-        // Don't intercept Vite's own internal HTTP endpoints.
-        if (
-          url.startsWith("/@vite/") ||
-          url.startsWith("/@fs/") ||
-          url.startsWith("/@id/") ||
-          url.startsWith("/__vite_ping")
-        ) {
-          next();
-          return;
-        }
-
-        try {
-          const request = await serializeRequest(req);
-
-          const response = await runtime.request(request);
-
-          res.statusCode = response.status;
-          res.statusMessage = response.statusText;
-
-          for (const [name, value] of response.headers) {
-            res.setHeader(name, value);
-          }
-
-          if (response.body) {
-            res.end(Buffer.from(response.body));
-          } else {
-            res.end();
-          }
-        } catch (error) {
-          next(error);
-        }
-      });
+      server.middlewares.use(createNodeRequestHandler(runtime));
 
       server.httpServer?.once("close", () => {
         void runtime.close();
       });
     },
+
+    configurePreviewServer(server) {
+      const node = createNodeRuntime({
+        mode: "preview",
+        entry: resolvePreviewEntry(server, environmentName),
+      });
+
+      server.middlewares.use(createNodeRequestHandler(node.runtime));
+
+      server.httpServer?.once("close", () => {
+        void node.runtime.close();
+      });
+    },
+  };
+}
+
+const serverEntryFileName = "server.mjs";
+
+export function resolvePreviewEntry(server: PreviewServer, environmentName: string): string {
+  const environment = server.config.environments[environmentName];
+
+  if (!environment) {
+    throw new Error(`Environment "${environmentName}" does not exist`);
+  }
+
+  return resolve(server.config.root, environment.build.outDir, serverEntryFileName);
+}
+
+function createNodeRequestHandler(runtime: NodeRuntime) {
+  return async (
+    req: Connect.IncomingMessage,
+    res: ServerResponse<IncomingMessage>,
+    next: Connect.NextFunction,
+  ) => {
+    const url = req.url ?? "/";
+
+    // Don't intercept Vite's own internal HTTP endpoints.
+    if (
+      url.startsWith("/@vite/") ||
+      url.startsWith("/@fs/") ||
+      url.startsWith("/@id/") ||
+      url.startsWith("/__vite_ping")
+    ) {
+      next();
+      return;
+    }
+
+    try {
+      const request = await serializeRequest(req);
+
+      const response = await runtime.request(request);
+
+      res.statusCode = response.status;
+      res.statusMessage = response.statusText;
+
+      for (const [name, value] of response.headers) {
+        res.setHeader(name, value);
+      }
+
+      if (response.body) {
+        res.end(Buffer.from(response.body));
+      } else {
+        res.end();
+      }
+    } catch (error) {
+      next(error);
+    }
   };
 }

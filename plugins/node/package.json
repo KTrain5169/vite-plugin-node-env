@@ -28,8 +28,7 @@
     "build": "vp pack",
     "dev": "vp pack --watch",
     "test": "vp test",
-    "check": "vp check",
-    "prepare": "vp run build"
+    "check": "vp check"
   },
   "dependencies": {
     "@rolldown/pluginutils": "^1.0.1"

@@ -1,5 +1,9 @@
-export default {
-  fetch(_req: Request) {
-    return new Response("It works!");
-  },
-};
+import { Hono } from "hono";
+
+const server = new Hono();
+
+server.get("/", (c) => {
+  return c.text("It works!");
+});
+
+export default server;

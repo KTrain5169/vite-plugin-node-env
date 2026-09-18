@@ -8,6 +8,9 @@
     "build": "tsc && vp build",
     "preview": "vp preview"
   },
+  "dependencies": {
+    "hono": "^4.13.8"
+  },
   "devDependencies": {
     "@ktrain5369/vite-plugin-node-env": "workspace:*",
     "typescript": "~6.0.2",
