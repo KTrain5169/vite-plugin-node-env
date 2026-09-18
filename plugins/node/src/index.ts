@@ -15,6 +15,84 @@ export interface FetchStandard {
   fetch(request: Request): Response | Promise<Response>;
 }
 
+function getBuildCode(
+  entryPath: string,
+  entryId: string,
+  serverType: string,
+  _opts: PluginOptions,
+) {
+  if (serverType === "node") {
+    return `
+import { toFetchHandler } from 'srvx/node'
+const entry = await import(${entryPath})
+
+export const handler = entry.default
+
+if (typeof handler !== 'function') {
+  throw new TypeError("default export is not callable")
+}
+
+export const fetch = toFetchHandler(handler)
+`;
+  }
+
+  return `
+const entry = await import(${entryPath})
+
+export const fetch =
+  entry.default?.fetch ?? entry.fetch
+
+if (typeof fetch !== 'function') {
+  throw new TypeError("no fetch function exported")
+}
+`;
+}
+
+function getDevCode(entryPath: string, entryId: string, serverType: string, _opts: PluginOptions) {
+  const isNode = serverType === "node";
+
+  return `
+import ${isNode ? "{ fetchNodeHandler } from 'srvx/node'" : ""}
+const entry = await import(${entryPath})
+
+let current = entry.default ?? entry
+
+if (${isNode ? "typeof current !== 'function'" : "typeof current.fetch !== 'function'"}) {
+  throw new TypeError(
+    ${JSON.stringify(`${_opts.entry} must default-export an object containing fetch()`)}
+  )
+}
+
+if (import.meta.hot) {
+  import.meta.hot.accept(
+    ${JSON.stringify(entryId)},
+    (next) => {
+      const nextApp = next?.default
+
+      if (
+        !nextApp ||
+        typeof nextApp.fetch !== 'function'
+      ) {
+        console.error(
+          ${JSON.stringify(
+            `${_opts.entry} HMR update was rejected because its default export does not contain fetch()`,
+          )}
+        )
+
+        return
+      }
+
+      current = nextApp
+    },
+  )
+}
+
+export function fetch(request) {
+  ${isNode ? "return fetchNodeHandler(current)" : "return current.fetch(request)"}
+}
+`;
+}
+
 export function node(opts: PluginOptions): Plugin {
   const serverType = opts.serverType ?? "web";
   const environmentName = opts.environment ?? "server";
@@ -102,114 +180,10 @@ export function node(opts: PluginOptions): Plugin {
         const entryId = resolved.id;
 
         if (command === "build") {
-          if (serverType === "node") {
-            return `
-import { toFetchHandler } from 'srvx/node'
-const entry = await import(${entryPath})
-
-export const handler = entry.default
-
-if (typeof handler !== 'function') {
-  throw new TypeError("default export is not callable")
-}
-
-export const fetch = toFetchHandler(handler)
-`;
-          }
-          return `
-const entry = await import(${entryPath})
-
-export const fetch =
-  entry.default?.fetch ?? entry.fetch
-
-if (typeof fetch !== 'function') {
-  throw new TypeError("no fetch function exported")
-}
-`;
+          return getBuildCode(entryPath, entryId, serverType, opts);
         }
 
-        if (serverType === "node") {
-          return `
-import { fetchNodeHandler } from 'srvx/node'
-const entry = await import(${entryPath})
-
-let current = entry.default ?? entry
-
-if (typeof current !== 'function') {
-  throw new TypeError(
-    ${JSON.stringify(`${opts.entry} must default-export an object containing fetch()`)}
-  )
-}
-
-if (import.meta.hot) {
-  import.meta.hot.accept(
-    ${JSON.stringify(entryId)},
-    (next) => {
-      const nextApp = next?.default
-
-      if (
-        !nextApp ||
-        typeof nextApp.fetch !== 'function'
-      ) {
-        console.error(
-          ${JSON.stringify(
-            `${opts.entry} HMR update was rejected because its default export does not contain fetch()`,
-          )}
-        )
-
-        return
-      }
-
-      current = nextApp
-    },
-  )
-}
-
-export function fetch(request) {
-  return fetchNodeHandler(current)
-}
-`;
-        }
-
-        return `
-const entry = await import(${entryPath})
-
-let current = entry.default ?? entry
-
-if (typeof current.fetch !== 'function') {
-  throw new TypeError(
-    ${JSON.stringify(`${opts.entry} must default-export an object containing fetch()`)}
-  )
-}
-
-if (import.meta.hot) {
-  import.meta.hot.accept(
-    ${JSON.stringify(entryId)},
-    (next) => {
-      const nextApp = next?.default
-
-      if (
-        !nextApp ||
-        typeof nextApp.fetch !== 'function'
-      ) {
-        console.error(
-          ${JSON.stringify(
-            `${opts.entry} HMR update was rejected because its default export does not contain fetch()`,
-          )}
-        )
-
-        return
-      }
-
-      current = nextApp
-    },
-  )
-}
-
-export function fetch(request) {
-  return current.fetch(request)
-}
-`;
+        return getDevCode(entryPath, entryId, serverType, opts);
       },
     },
 
