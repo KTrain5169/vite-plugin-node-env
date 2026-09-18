@@ -15,16 +15,11 @@ export interface FetchStandard {
   fetch(request: Request): Response | Promise<Response>;
 }
 
-function getBuildCode(
-  entryPath: string,
-  entryId: string,
-  serverType: string,
-  _opts: PluginOptions,
-) {
+function getBuildCode(entryPath: string, serverType: string, _opts: PluginOptions) {
   if (serverType === "node") {
     return `
 import { toFetchHandler } from 'srvx/node'
-const entry = await import(${entryPath})
+const entry = await import(${JSON.stringify(entryPath)})
 
 export const handler = entry.default
 
@@ -37,7 +32,7 @@ export const fetch = toFetchHandler(handler)
   }
 
   return `
-const entry = await import(${entryPath})
+const entry = await import(${JSON.stringify(entryPath)})
 
 export const fetch =
   entry.default?.fetch ?? entry.fetch
@@ -52,7 +47,7 @@ function getDevCode(entryPath: string, entryId: string, serverType: string, _opt
   const isNode = serverType === "node";
 
   return `
-import ${isNode ? "{ fetchNodeHandler } from 'srvx/node'" : ""}
+${isNode ? "import { fetchNodeHandler } from 'srvx/node'" : ""}
 const entry = await import(${entryPath})
 
 let current = entry.default ?? entry
@@ -180,7 +175,7 @@ export function node(opts: PluginOptions): Plugin {
         const entryId = resolved.id;
 
         if (command === "build") {
-          return getBuildCode(entryPath, entryId, serverType, opts);
+          return getBuildCode(entryPath, serverType, opts);
         }
 
         return getDevCode(entryPath, entryId, serverType, opts);
