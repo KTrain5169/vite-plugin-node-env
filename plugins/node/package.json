@@ -31,7 +31,8 @@
     "check": "vp check"
   },
   "dependencies": {
-    "@rolldown/pluginutils": "^1.0.1"
+    "@rolldown/pluginutils": "^1.0.1",
+    "srvx": "^1.0.5"
   },
   "devDependencies": {
     "@arethetypeswrong/core": "^0.18.5",
