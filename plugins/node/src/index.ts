@@ -136,6 +136,9 @@ export function node(opts: PluginOptions): Plugin {
                   entryFileNames: "index.mjs",
                   format: "esm",
                 },
+
+                external: opts.external,
+                platform: "node",
               },
             },
           },
