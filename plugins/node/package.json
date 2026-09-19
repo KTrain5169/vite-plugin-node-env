@@ -48,11 +48,6 @@
     "srvx": "^1.0.5",
     "vite": "^8.0.0"
   },
-  "peerDependenciesMeta": {
-    "srvx": {
-      "optional": true
-    }
-  },
   "engines": {
     "node": "^24 || ^26"
   }

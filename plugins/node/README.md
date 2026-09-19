@@ -4,6 +4,8 @@ Vite plugin to run web standard (fetch) servers in a Node worker thread environm
 
 ## Usage
 
+Install both this plugin and `srvx`, as `srvx` is a required peer dependency.
+
 ```ts
 import { defineConfig } from "vite";
 import { node } from "vite-plugin-node-env";
