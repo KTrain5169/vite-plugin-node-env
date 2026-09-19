@@ -21,7 +21,7 @@ function getBuildCode(entryPath: string, serverType: string, _opts: PluginOption
   if (serverType === "node") {
     return `
 import { toFetchHandler } from 'srvx/node'
-const entry = await import(${JSON.stringify(entryPath)})
+import * as entry from ${JSON.stringify(entryPath)}
 
 export const handler = entry.default
 
@@ -34,10 +34,9 @@ export const fetch = toFetchHandler(handler)
   }
 
   return `
-const entry = await import(${JSON.stringify(entryPath)})
+import * as entry from ${JSON.stringify(entryPath)}
 
-export const fetch =
-  entry.default?.fetch ?? entry.fetch
+export const fetch = entry.default?.fetch
 
 if (typeof fetch !== 'function') {
   throw new TypeError("no fetch function exported")
@@ -218,12 +217,7 @@ export function node(opts: PluginOptions): Plugin {
   let root = process.cwd();
 
   return {
-    name: "vite-plugin-node",
-
-    configResolved(config) {
-      root = config.root;
-      command = config.command;
-    },
+    name: "vite-plugin-node-env",
 
     config() {
       return {
@@ -251,7 +245,7 @@ export function node(opts: PluginOptions): Plugin {
               rolldownOptions: {
                 input: {
                   index: virtualServerId,
-                  module: virtualModuleId,
+                  entry: virtualModuleId,
                 },
 
                 output: {
@@ -265,6 +259,11 @@ export function node(opts: PluginOptions): Plugin {
           },
         },
       };
+    },
+
+    configResolved(config) {
+      root = config.root;
+      command = config.command;
     },
 
     applyToEnvironment(environment) {
@@ -350,7 +349,7 @@ export function node(opts: PluginOptions): Plugin {
   };
 }
 
-const serverEntryFileName = "module.js";
+const serverEntryFileName = "entry.js";
 
 export function resolvePreviewEntry(server: PreviewServer, environmentName: string): string {
   const environment = server.config.environments[environmentName];
