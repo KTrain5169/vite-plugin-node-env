@@ -5,6 +5,7 @@ export default defineConfig({
   plugins: [
     node({
       entry: "src/index.ts",
+      outputRunnableCli: true,
     }),
   ],
 });

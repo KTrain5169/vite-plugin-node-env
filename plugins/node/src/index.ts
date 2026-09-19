@@ -216,6 +216,12 @@ export function node(opts: PluginOptions): Plugin {
 
   let root = process.cwd();
 
+  const rolldownInputs: Record<string, string> = { entry: virtualModuleId };
+  if (opts.outputRunnableCli === false) {
+  } else {
+    rolldownInputs.index = virtualServerId;
+  }
+
   return {
     name: "vite-plugin-node-env",
 
@@ -243,10 +249,7 @@ export function node(opts: PluginOptions): Plugin {
               outDir: `dist/${environmentName}`,
 
               rolldownOptions: {
-                input: {
-                  index: virtualServerId,
-                  entry: virtualModuleId,
-                },
+                input: rolldownInputs,
 
                 output: {
                   format: "esm",

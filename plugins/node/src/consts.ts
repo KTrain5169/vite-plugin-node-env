@@ -5,6 +5,7 @@ export interface PluginOptions {
   environment?: string;
   serverType?: "node" | "web";
   external?: string[];
+  outputRunnableCli?: boolean;
 }
 
 export interface RequestMessage {
