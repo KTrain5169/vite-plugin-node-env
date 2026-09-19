@@ -1,5 +1,5 @@
 import { isAbsolute, resolve as resolvePath } from "node:path";
-import { DevEnvironment, type Plugin, type Connect, type PreviewServer } from "vite";
+import { DevEnvironment, type Plugin, type Connect, type PreviewServer, type Logger } from "vite";
 import { exactRegex } from "@rolldown/pluginutils";
 import {
   type PluginOptions,
@@ -328,6 +328,7 @@ export function node(opts: PluginOptions): Plugin {
 
       return () => {
         server.middlewares.use(createNodeRequestHandler(runtime));
+        server.middlewares.use(nodeRequestLogger(server.config.logger));
 
         server.httpServer?.once("close", () => {
           void runtime.close();
@@ -343,11 +344,30 @@ export function node(opts: PluginOptions): Plugin {
 
       return () => {
         server.middlewares.use(createNodeRequestHandler(node.runtime));
+        server.middlewares.use(nodeRequestLogger(server.config.logger));
 
         server.httpServer?.once("close", () => {
           void node.runtime.close();
         });
       };
+    },
+
+    hotUpdate(options) {
+      if (this.environment.name !== environmentName) {
+        return;
+      }
+
+      switch (options.type) {
+        case "create":
+          this.info(`[vite-plugin-node-env] module created in backend: ${options.file}`);
+          break;
+        case "update":
+          this.info(`[vite-plugin-node-env] module updated in backend: ${options.file}`);
+          break;
+        case "delete":
+          this.info(`[vite-plugin-node-env] module deleted in backend: ${options.file}`);
+          break;
+      }
     },
   };
 }
@@ -403,5 +423,23 @@ function createNodeRequestHandler(runtime: NodeRuntime) {
     } catch (error) {
       next(error);
     }
+  };
+}
+
+function nodeRequestLogger(logger: Logger) {
+  return async (
+    req: Connect.IncomingMessage,
+    res: ServerResponse<IncomingMessage>,
+    next: () => void,
+  ) => {
+    const start = performance.now();
+    res.once("finish", () => {
+      const time = performance.now() - start;
+
+      logger.info(`[${res.statusCode}] ${req.method} ${req.url} (${time.toFixed()}ms)`, {
+        timestamp: true,
+      });
+    });
+    next();
   };
 }
