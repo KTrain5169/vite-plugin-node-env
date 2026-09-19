@@ -2,7 +2,7 @@
   "name": "@ktrain5369/vite-plugin-node-env",
   "version": "0.0.0",
   "description": "Simple Vite plugin for running Node backends as an environment",
-  "homepage": "https://github.com/KTrain5169/vite-plugin-node#readme",
+  "homepage": "https://github.com/KTrain5169/vite-plugin-node-env#readme",
   "bugs": {
     "url": "https://github.com/KTrain5169/vite-plugin-node/issues"
   },
@@ -10,7 +10,7 @@
   "author": "KTrain5369",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/KTrain5169/vite-plugin-node.git"
+    "url": "git+https://github.com/KTrain5169/vite-plugin-node-env.git"
   },
   "files": [
     "dist"
