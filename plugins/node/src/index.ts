@@ -29,23 +29,27 @@ if (typeof handler !== 'function') {
   throw new TypeError("default export is not callable")
 }
 
-export const fetch = toFetchHandler(handler)
+export default toFetchHandler(handler)
 `;
   }
 
   return `
 import * as entry from ${JSON.stringify(entryPath)}
 
-export const fetch = entry.default?.fetch
+const fetch = entry.default?.fetch
 
 if (typeof fetch !== 'function') {
   throw new TypeError("no fetch function exported")
+}
+
+export default {
+  fetch,
 }
 `;
 }
 
 const serverCliCode = `
-import { fetch } from '${virtualModuleId}'
+import fetch from '${virtualModuleId}'
 import { parseArgs } from "node:util";
 import { serve } from "srvx";
 import { loggerMiddleware } from "srvx/log";
