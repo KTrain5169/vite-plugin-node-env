@@ -214,6 +214,10 @@ export function node(opts: PluginOptions): Plugin {
   const serverType = opts.serverType ?? "web";
   const environmentName = opts.environment ?? "server";
 
+  if (environmentName === "client") {
+    throw new Error("opts.environment must not be set to client");
+  }
+
   const runtimes = new WeakMap<DevEnvironment, NodeRuntime>();
 
   let command: string;
