@@ -182,11 +182,16 @@ export class RpcPeer {
 
   /**
    * Start receiving messages and (on the worker side) announce readiness.
+   *
+   * The worker is ready as soon as it starts listening, so it resolves its own
+   * `ready` promise locally. The main side resolves it when the worker's
+   * announcement arrives.
    */
   start(): void {
     this.port.start();
 
     if (this.side === "worker") {
+      this.resolveReady();
       this.port.postMessage({ type: "ready" } satisfies RpcReadyMessage);
     }
   }

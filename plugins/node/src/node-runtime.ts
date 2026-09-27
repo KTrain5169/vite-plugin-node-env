@@ -161,6 +161,8 @@ export function createNodeRpcRuntime(): NodeRpcHost {
 
   const peer = new RpcPeer(rpcServerPort, "main");
 
+  peer.start();
+
   const workerFailed = (error: Error) => {
     peer.destroy(error);
   };

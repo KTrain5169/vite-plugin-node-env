@@ -86,39 +86,46 @@ function findConflictingInputEntries(
   return conflicts;
 }
 
-function getBuildCode(entryPath: string, serverType: string, _opts: PluginOptions) {
+/**
+ * Build entry module.
+ *
+ * The generated code is deliberately free of runtime shape checks: the
+ * `typeof` guards that used to live here cost bundle size on every build and
+ * only fired once the server was already starting. A plain `import handler
+ * from "<entry>"` instead makes the bundler resolve the default export while
+ * it builds, so a missing default export is a build error rather than a
+ * startup crash.
+ *
+ * Shapes differ per `serverType` and the CLI unwraps accordingly:
+ * - `node`: the default export is a Node-style `(req, res)` handler, wrapped
+ *   here into a fetch handler via srvx's `toFetchHandler`.
+ * - `web`: the default export is already the standard `{ fetch }` object and
+ *   is re-exported unchanged.
+ */
+function getBuildCode(entryPath: string, serverType: string) {
   if (serverType === "node") {
     return `
 import { toFetchHandler } from 'srvx/node'
-import * as entry from ${JSON.stringify(entryPath)}
-
-export const handler = entry.default
-
-if (typeof handler !== 'function') {
-  throw new TypeError("default export is not callable")
-}
+import handler from ${JSON.stringify(entryPath)}
 
 export default toFetchHandler(handler)
 `;
   }
 
   return `
-import * as entry from ${JSON.stringify(entryPath)}
-
-const fetch = entry.default?.fetch
-
-if (typeof fetch !== 'function') {
-  throw new TypeError("no fetch function exported")
-}
-
-export default {
-  fetch,
-}
+export { default } from ${JSON.stringify(entryPath)}
 `;
 }
 
-const serverCliCode = `
-import fetch from '${virtualModuleId}'
+const serverCliCode = (serverType: string) => `
+// The build entry's default export is the entry itself for \`node\` (a
+// Node-style handler, already wrapped by toFetchHandler) and the standard
+// \`{ fetch }\` object for \`web\`. srvx's \`serve()\` wants the fetch function
+// itself, so unwrap only the web shape.
+import entry from '${virtualModuleId}'
+
+const fetch = ${serverType === "node" ? "entry" : "entry.fetch"}
+
 import { parseArgs } from "node:util";
 import { serve } from "srvx";
 import { loggerMiddleware } from "srvx/log";
@@ -277,6 +284,40 @@ export function fetch(request) {
   ${isNode ? "return fetchNodeHandler(current)" : "return current.fetch(request)"}
 }
 `;
+}
+
+/**
+ * Build-time entry shape validation.
+ *
+ * With the runtime `typeof` guards removed from the generated build code, a
+ * missing default export is already a build error (the generated code
+ * imports it). What the bundler *cannot* catch is a default export of the
+ * wrong kind, so check the module's known export bindings here and fail the
+ * build with an actionable message.
+ *
+ * Best-effort by design: if the entry has not been analyzed yet (it is often
+ * still awaiting transformation when this virtual module loads) there is
+ * nothing to assert, so this stays silent rather than failing a valid build.
+ */
+async function validateEntryShape(
+  entryId: string,
+  serverType: string,
+  context: { getModuleInfo?: (id: string) => unknown },
+): Promise<void> {
+  const exportedBindings = (
+    context.getModuleInfo?.(entryId) as { exportedBindings?: Set<string> | null } | null | undefined
+  )?.exportedBindings;
+
+  if (!exportedBindings) {
+    return;
+  }
+
+  if (!exportedBindings.has("default")) {
+    throw new Error(
+      `Backend entry ${JSON.stringify(entryId)} has no default export. ` +
+        `It must ${serverType === "node" ? "default-export a Node request handler function" : 'default-export an object containing a fetch() function ("export default { fetch }")'}.`,
+    );
+  }
 }
 
 export function node(opts: PluginOptions): Plugin {
@@ -490,12 +531,17 @@ export function node(opts: PluginOptions): Plugin {
           const entryId = resolved.id;
 
           if (command === "build") {
-            return getBuildCode(entryPath, serverType, opts);
+            // Surface a wrong-shaped entry now rather than at server start.
+            // The generated build code no longer carries runtime `typeof`
+            // checks, so this is the only place the shape is verified.
+            await validateEntryShape(resolved.id, serverType, this);
+
+            return getBuildCode(entryPath, serverType);
           }
 
           return getDevCode(entryPath, entryId, serverType, opts);
         } else if (id === resolvedVirtualServerId) {
-          return serverCliCode;
+          return serverCliCode(serverType);
         }
       },
     },

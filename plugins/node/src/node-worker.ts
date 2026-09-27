@@ -6,9 +6,7 @@ import { ESModulesEvaluator, ModuleRunner, createNodeImportMeta } from "vite/mod
 import type { RequestMessage, ResponseMessage, WorkerResponse } from "./consts.ts";
 import { RpcPeer, serializeError } from "./node-rpc.ts";
 
-interface BackendRuntime {
-  fetch(request: Request): Response | Promise<Response>;
-}
+type FetchHandler = (request: Request) => Response | Promise<Response>;
 
 interface WorkerData {
   mode: "dev" | "preview";
@@ -60,18 +58,12 @@ if (data.mode === "dev") {
 if (data.requestPort && data.runtime) {
   const requestPort = data.requestPort;
 
-  let runtime: BackendRuntime;
+  let fetch: FetchHandler;
 
   if (data.mode === "dev" && runner) {
-    runtime = await runner.import<BackendRuntime>(data.runtime);
+    fetch = resolveFetchHandler(await runner.import(data.runtime));
   } else {
-    const module = await import(pathToFileURL(data.runtime).href);
-
-    runtime = module as BackendRuntime;
-  }
-
-  if (typeof runtime.fetch !== "function") {
-    throw new TypeError("Backend runtime does not export a fetch() function");
+    fetch = resolveFetchHandler(await import(pathToFileURL(data.runtime).href));
   }
 
   requestPort.on("message", async (message: RequestMessage) => {
@@ -82,7 +74,7 @@ if (data.requestPort && data.runtime) {
     try {
       const request = createRequest(message);
 
-      const response = await runtime.fetch(request);
+      const response = await fetch(request);
 
       const body = response.body === null ? undefined : await response.arrayBuffer();
 
@@ -133,6 +125,45 @@ if (data.rpcPort) {
   }
 
   peer.start();
+}
+
+/**
+ * Resolves the fetch handler from an evaluated backend module.
+ *
+ * The standard is `export default { fetch }`. The generated dev code exposes
+ * a named `fetch` export instead, and `serverType: "node"` builds default-export
+ * a bare handler function, so all three shapes are accepted. Anything else is
+ * a hard error rather than a silently broken server.
+ */
+function resolveFetchHandler(module: unknown): FetchHandler {
+  const defaultExport = (module as { default?: unknown } | null | undefined)?.default;
+
+  if (isFetchHandler(defaultExport)) {
+    return defaultExport;
+  }
+
+  if (typeof defaultExport === "object" && defaultExport !== null) {
+    const candidate = (defaultExport as { fetch?: unknown }).fetch;
+
+    if (isFetchHandler(candidate)) {
+      return candidate;
+    }
+  }
+
+  const named = (module as { fetch?: unknown } | null | undefined)?.fetch;
+
+  if (isFetchHandler(named)) {
+    return named;
+  }
+
+  throw new TypeError(
+    "Backend runtime does not export a fetch() function. " +
+      "Expected `export default { fetch }`, a default-exported handler function, or a named `fetch` export.",
+  );
+}
+
+function isFetchHandler(value: unknown): value is FetchHandler {
+  return typeof value === "function";
 }
 
 function createRequest(message: RequestMessage): Request {
