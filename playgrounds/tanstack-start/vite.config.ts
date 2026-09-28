@@ -1,21 +1,22 @@
-import { defineConfig } from "vite-plus";
+import { defineConfig, lazyPlugins } from "vite-plus";
 import { devtools } from "@tanstack/devtools-vite";
 
 import { tanstackStart } from "@tanstack/react-start/plugin/vite";
 
 import viteReact from "@vitejs/plugin-react";
 import tailwindcss from "@tailwindcss/vite";
-import { cloudflare } from "@cloudflare/vite-plugin";
+
+import { node } from "@ktrain5369/vite-plugin-node-env";
 
 const config = defineConfig({
   resolve: { tsconfigPaths: true },
-  plugins: [
+  plugins: lazyPlugins(() => [
     devtools(),
-    cloudflare({ viteEnvironment: { name: "ssr" } }),
+    node({ environment: "ssr" }),
     tailwindcss(),
     tanstackStart(),
     viteReact(),
-  ],
+  ]),
 });
 
 export default config;

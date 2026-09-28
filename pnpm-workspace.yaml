@@ -3,6 +3,13 @@ catalog:
   vite-plus: 1.0.0-rc.1
 overrides:
   vite@*: "catalog:"
+# Force a single physical copy of packages used as peer dependencies.
+#
+# Temporary: without this, `plugins/node` and each framework playground
+# resolved separate copies of Vite (different pnpm peer hashes). Because
+# `isRunnableDevEnvironment` is an `instanceof`, a plugin-created environment
+# was then invisible to the framework's dev middleware. TODO: fix properly.
+dedupePeerDependents: true
 peerDependencyRules:
   allowAny:
     - vite

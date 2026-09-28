@@ -139,6 +139,35 @@ function isPlainObject(value: unknown): value is Record<string, unknown> {
   return prototype === Object.prototype || prototype === null;
 }
 
+/**
+ * Builtins the structured clone algorithm handles natively.
+ *
+ * These must be passed through untouched: walking them as plain objects would
+ * destroy them (a `Date` would arrive as `{}`, a `Map` as `{}`, and so on).
+ * Every other object is walked, so functions nested inside it are converted to
+ * callable references instead of reaching `postMessage` and raising
+ * `DataCloneError`.
+ *
+ * A function held inside a `Map`/`Set` still cannot cross the boundary; that
+ * is a known limitation rather than a silent failure.
+ */
+function isNativeCloneable(value: object): boolean {
+  return (
+    value instanceof Date ||
+    value instanceof RegExp ||
+    value instanceof URL ||
+    value instanceof URLSearchParams ||
+    value instanceof Map ||
+    value instanceof Set ||
+    value instanceof ArrayBuffer ||
+    value instanceof DataView ||
+    ArrayBuffer.isView(value) ||
+    value instanceof Error ||
+    (typeof Blob !== "undefined" && value instanceof Blob) ||
+    (typeof Headers !== "undefined" && value instanceof Headers)
+  );
+}
+
 export class RpcPeer {
   readonly port: MessagePort;
   readonly side: RpcSide;
@@ -276,7 +305,16 @@ export class RpcPeer {
         this.port.postMessage(payload);
       } catch (error) {
         this.pending.delete(id);
-        reject(error as Error);
+
+        reject(
+          new TypeError(
+            `vite-plugin-node-env: could not send a ${message.type} request across the worker boundary: ` +
+              `${(error as Error).message}. ` +
+              `Functions are passed as callable references, but values the structured clone algorithm cannot ` +
+              `handle (for example a function stored inside a Map, Set, or typed array) cannot cross.`,
+            { cause: error },
+          ),
+        );
       }
     });
   }
@@ -396,6 +434,10 @@ export class RpcPeer {
       return { kind: FN_KIND, ref } satisfies FnMarker;
     }
 
+    if (typeof value !== "object" || value === null) {
+      return value;
+    }
+
     if (value instanceof Request) {
       return {
         kind: REQUEST_KIND,
@@ -436,8 +478,12 @@ export class RpcPeer {
       return out;
     }
 
-    if (isPlainObject(value)) {
-      if (seen.has(value)) {
+    if (isNativeCloneable(value)) {
+      return value;
+    }
+
+    if (isPlainObject(value) || typeof value === "object") {
+      if (seen.has(value as object)) {
         throw new Error(CIRCULAR_ERROR);
       }
 
@@ -445,6 +491,10 @@ export class RpcPeer {
 
       tracked.add(value);
 
+      // Class instances are walked too and rebuilt as plain objects. The
+      // structured clone algorithm would drop the prototype anyway, so this
+      // matches existing behaviour while additionally converting any nested
+      // functions into callable references.
       const out: Record<string, unknown> = {};
 
       for (const [key, item] of Object.entries(value)) {
@@ -472,7 +522,7 @@ export class RpcPeer {
       return value.map((item) => this.hydrate(item));
     }
 
-    if (isPlainObject(value)) {
+    if (isPlainObject(value) || typeof value === "object") {
       const out: Record<string, unknown> = {};
 
       for (const [key, item] of Object.entries(value)) {

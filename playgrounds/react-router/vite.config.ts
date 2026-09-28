@@ -1,10 +1,10 @@
 import { reactRouter } from "@react-router/dev/vite";
-import tailwindcss from "@tailwindcss/vite";
-import { defineConfig } from "vite-plus";
-import { lazyPlugins } from "vite-plus";
+import { defineConfig, type PluginOption } from "vite-plus";
+
+import { node } from "@ktrain5369/vite-plugin-node-env";
 
 export default defineConfig({
-  plugins: lazyPlugins(() => [tailwindcss(), reactRouter()]),
+  plugins: [node({ environment: "ssr" }), reactRouter()] as PluginOption[],
   resolve: {
     tsconfigPaths: true,
   },

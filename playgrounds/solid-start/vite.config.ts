@@ -1,9 +1,10 @@
 import { defineConfig } from "vite-plus";
-import { nitro } from "nitro/vite";
 
 import { solidStart } from "@solidjs/start/config";
 import { lazyPlugins } from "vite-plus";
 
+import { node } from "@ktrain5369/vite-plugin-node-env";
+
 export default defineConfig({
-  plugins: lazyPlugins(() => [solidStart(), nitro()]),
+  plugins: lazyPlugins(() => [node({ environment: "ssr" }), solidStart()]),
 });
