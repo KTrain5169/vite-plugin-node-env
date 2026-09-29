@@ -1,0 +1,26 @@
+{
+  "name": "node-backend",
+  "version": "1.0.0",
+  "description": "",
+  "keywords": [],
+  "license": "ISC",
+  "author": "",
+  "type": "module",
+  "main": "index.js",
+  "scripts": {
+    "dev": "vp dev",
+    "build": "tsc && vp build",
+    "preview": "vp preview"
+  },
+  "dependencies": {
+    "express": "^5.2.1",
+    "srvx": "^1.0.5"
+  },
+  "devDependencies": {
+    "@ktrain5369/vite-plugin-node-env": "workspace:^",
+    "@types/express": "^5.0.6",
+    "typescript": "^7.0.2",
+    "vite": "^8.3.1",
+    "vite-plus": "^1.0.0"
+  }
+}

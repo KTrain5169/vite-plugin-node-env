@@ -6,5 +6,5 @@ import { lazyPlugins } from "vite-plus";
 import { node } from "@ktrain5369/vite-plugin-node-env";
 
 export default defineConfig({
-  plugins: lazyPlugins(() => [node({ environment: "ssr" }), solidStart()]),
+  plugins: lazyPlugins(() => [node({ environment: "ssr", outputRunnableCli: true }), solidStart()]),
 });

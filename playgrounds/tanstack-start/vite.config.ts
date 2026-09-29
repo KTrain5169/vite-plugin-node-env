@@ -12,7 +12,7 @@ const config = defineConfig({
   resolve: { tsconfigPaths: true },
   plugins: lazyPlugins(() => [
     devtools(),
-    node({ environment: "ssr" }),
+    node({ environment: "ssr", outputRunnableCli: true }),
     tailwindcss(),
     tanstackStart(),
     viteReact(),
