@@ -18,12 +18,12 @@
     "packageManager": {
       "name": "pnpm",
       "version": "12.8.1",
-      "onFail": "download"
+      "onFail": "warn"
     },
     "runtime": {
       "name": "node",
       "version": "26.10.0",
-      "onFail": "download"
+      "onFail": "warn"
     }
   }
 }
