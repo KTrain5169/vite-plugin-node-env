@@ -10,7 +10,8 @@
     "generate-routes": "tsr generate",
     "build": "vp build",
     "preview": "vp preview",
-    "deploy": "pnpm run build && wrangler deploy"
+    "deploy": "pnpm run build && wrangler deploy",
+    "prepare": "vpr generate-routes"
   },
   "dependencies": {
     "@tailwindcss/vite": "^4.1.18",

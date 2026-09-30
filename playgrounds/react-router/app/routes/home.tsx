@@ -1,6 +1,4 @@
-import type { Route } from "./+types/home";
-
-export function meta({}: Route.MetaArgs) {
+export function meta() {
   return [
     { title: "React Router + vite-plugin-node-env" },
     {
