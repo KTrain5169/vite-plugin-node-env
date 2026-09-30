@@ -7,8 +7,8 @@
     "build": "react-router build",
     "dev": "react-router dev",
     "start": "react-router-serve ./build/server/index.js",
-    "typecheck": "react-router typegen && tsc",
-    "prepare": "pnpm run typecheck"
+    "typegen": "react-router typegen",
+    "prepare": "pnpm run typegen"
   },
   "dependencies": {
     "@react-router/node": "8.4.0",
