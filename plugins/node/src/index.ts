@@ -235,6 +235,8 @@ function describeValue(value: unknown): string {
 
 function serverCliCode(serverType: string, importSource: string) {
   return `
+#!/usr/bin/env node
+
 import entry from ${JSON.stringify(importSource)}
 
 const fetch = ${serverType === "node" ? "entry" : "entry.fetch"}
