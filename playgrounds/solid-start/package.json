@@ -19,8 +19,5 @@
   "devDependencies": {
     "@ktrain5369/vite-plugin-node-env": "workspace:^",
     "vite-plus": "catalog:"
-  },
-  "engines": {
-    "node": ">=24"
   }
 }
