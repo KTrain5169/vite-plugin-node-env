@@ -395,7 +395,7 @@ if (import.meta.hot) {
 }
 
 export function fetch(request) {
-  ${isNode ? "return fetchNodeHandler(current)" : "return current.fetch(request)"}
+  ${isNode ? "return fetchNodeHandler(current, request)" : "return current.fetch(request)"}
 }
 `;
 }
