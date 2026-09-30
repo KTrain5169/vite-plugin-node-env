@@ -17,9 +17,6 @@ const config = defineConfig({
     tanstackStart(),
     viteReact(),
   ]),
-  fmt: {
-    ignorePatterns: ["**/routeTree.gen.ts"],
-  },
 });
 
 export default config;
