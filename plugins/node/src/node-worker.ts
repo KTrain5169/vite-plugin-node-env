@@ -4,22 +4,23 @@ import { pathToFileURL } from "node:url";
 import { ESModulesEvaluator, ModuleRunner, createNodeImportMeta } from "vite/module-runner";
 
 import type { RequestMessage, ResponseMessage, WorkerResponse } from "./consts.ts";
+import { RpcPeer, serializeError } from "./node-rpc.ts";
 
-interface BackendRuntime {
-  fetch(request: Request): Response | Promise<Response>;
-}
+type FetchHandler = (request: Request) => Response | Promise<Response>;
 
 interface WorkerData {
   mode: "dev" | "preview";
-  runtime: string;
-  requestPort: MessagePort;
+  /** Backend mode: module id (dev) or built entry file path (preview). */
+  runtime?: string;
+  /** Backend mode request channel. */
+  requestPort?: MessagePort;
+  /** Runtime-provider mode RPC channel. */
+  rpcPort?: MessagePort;
 }
 
 const data = workerData as WorkerData;
 
-const requestPort = data.requestPort;
-
-let runtime: BackendRuntime;
+let runner: ModuleRunner | undefined;
 
 if (data.mode === "dev") {
   const hotTransport = {
@@ -40,67 +41,130 @@ if (data.mode === "dev") {
     },
   };
 
-  const runner = new ModuleRunner(
+  runner = new ModuleRunner(
     {
       transport: hotTransport,
       createImportMeta: createNodeImportMeta,
     },
     new ESModulesEvaluator(),
   );
-
-  runtime = await runner.import<BackendRuntime>(data.runtime);
-} else {
-  const module = await import(pathToFileURL(data.runtime).href);
-
-  runtime = module as BackendRuntime;
 }
 
-if (typeof runtime.fetch !== "function") {
-  throw new TypeError("Backend runtime does not export a fetch() function");
-}
+//
+// Backend mode: eagerly import the entry and serve requests over the
+// request channel.
+//
 
-requestPort.on("message", async (message: RequestMessage) => {
-  if (message.type !== "request") {
-    return;
+if (data.requestPort && data.runtime) {
+  const requestPort = data.requestPort;
+
+  let fetch: FetchHandler;
+
+  if (data.mode === "dev" && runner) {
+    fetch = resolveFetchHandler(await runner.import(data.runtime));
+  } else {
+    fetch = resolveFetchHandler(await import(pathToFileURL(data.runtime).href));
   }
 
-  try {
-    const request = createRequest(message);
+  requestPort.on("message", async (message: RequestMessage) => {
+    if (message.type !== "request") {
+      return;
+    }
 
-    const response = await runtime.fetch(request);
+    try {
+      const request = createRequest(message);
 
-    const body = response.body === null ? undefined : await response.arrayBuffer();
+      const response = await fetch(request);
 
-    const result: ResponseMessage = {
-      type: "response",
-      id: message.id,
-      status: response.status,
-      statusText: response.statusText,
-      headers: [...response.headers] as [string, string][],
-      body,
-    };
+      const body = response.body === null ? undefined : await response.arrayBuffer();
 
-    if (body) {
-      requestPort.postMessage(result, [body]);
-    } else {
+      const result: ResponseMessage = {
+        type: "response",
+        id: message.id,
+        status: response.status,
+        statusText: response.statusText,
+        headers: [...response.headers] as [string, string][],
+        body,
+      };
+
+      if (body) {
+        requestPort.postMessage(result, [body]);
+      } else {
+        requestPort.postMessage(result);
+      }
+    } catch (error) {
+      const result: WorkerResponse = {
+        type: "error",
+        id: message.id,
+        error: serializeError(error),
+      };
+
       requestPort.postMessage(result);
     }
-  } catch (error) {
-    const result: WorkerResponse = {
-      type: "error",
-      id: message.id,
-      error: serializeError(error),
-    };
+  });
 
-    requestPort.postMessage(result);
+  requestPort.start();
+
+  requestPort.postMessage({
+    type: "ready",
+  });
+}
+
+//
+// Runtime-provider mode: no entry of our own. Handle module imports coming
+// from the main process (usually a framework plugin's dev middleware
+// driving `environment.runner.import()`), evaluating them with the runner
+// above and proxying their exports back.
+//
+
+if (data.rpcPort) {
+  const peer = new RpcPeer(data.rpcPort, "worker");
+
+  if (runner) {
+    peer.onImport = (moduleId) => runner!.import(moduleId);
   }
-});
 
-requestPort.start();
+  peer.start();
+}
 
-requestPort.postMessage({
-  type: "ready",
-});
+/**
+ * Resolves the fetch handler from an evaluated backend module.
+ *
+ * The standard is `export default { fetch }`. The generated dev code exposes
+ * a named `fetch` export instead, and `serverType: "node"` builds default-export
+ * a bare handler function, so all three shapes are accepted. Anything else is
+ * a hard error rather than a silently broken server.
+ */
+function resolveFetchHandler(module: unknown): FetchHandler {
+  const defaultExport = (module as { default?: unknown } | null | undefined)?.default;
+
+  if (isFetchHandler(defaultExport)) {
+    return defaultExport;
+  }
+
+  if (typeof defaultExport === "object" && defaultExport !== null) {
+    const candidate = (defaultExport as { fetch?: unknown }).fetch;
+
+    if (isFetchHandler(candidate)) {
+      return candidate;
+    }
+  }
+
+  const named = (module as { fetch?: unknown } | null | undefined)?.fetch;
+
+  if (isFetchHandler(named)) {
+    return named;
+  }
+
+  throw new TypeError(
+    "Backend runtime does not export a fetch() function. " +
+      "Expected `export default { fetch }`, a default-exported handler function, or a named `fetch` export.",
+  );
+}
+
+function isFetchHandler(value: unknown): value is FetchHandler {
+  return typeof value === "function";
+}
 
 function createRequest(message: RequestMessage): Request {
   const headers = new Headers(message.headers);
@@ -113,19 +177,4 @@ function createRequest(message: RequestMessage): Request {
     body: hasBody ? message.body : undefined,
     ...(hasBody ? { duplex: "half" } : {}),
   });
-}
-
-function serializeError(error: unknown) {
-  if (error instanceof Error) {
-    return {
-      name: error.name,
-      message: error.message,
-      stack: error.stack,
-    };
-  }
-
-  return {
-    name: "Error",
-    message: String(error),
-  };
 }

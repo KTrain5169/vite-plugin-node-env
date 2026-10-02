@@ -1,0 +1,7 @@
+node_modules
+.react-router
+build
+dist
+*.local
+.DS_Store
+.vite

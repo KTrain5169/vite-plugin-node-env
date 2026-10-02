@@ -6,6 +6,7 @@ import {
   type ReadyMessage,
   type WorkerResponse,
 } from "./consts.ts";
+import { RpcPeer } from "./node-rpc.ts";
 
 export interface NodeRuntimeOptions {
   entry: string;
@@ -15,6 +16,13 @@ export interface NodeRuntimeOptions {
 export interface NodeRuntimeHost {
   worker: Worker;
   runtime: NodeRuntime;
+}
+
+export interface NodeRpcHost {
+  worker: Worker;
+  peer: RpcPeer;
+
+  close(): Promise<void>;
 }
 
 export function createNodeRuntime(options: NodeRuntimeOptions): NodeRuntimeHost {
@@ -131,5 +139,49 @@ export function createNodeRuntime(options: NodeRuntimeOptions): NodeRuntimeHost 
   return {
     worker,
     runtime,
+  };
+}
+
+/**
+ * Creates the worker used in runtime-provider mode (no `entry`). The worker
+ * hosts the `ModuleRunner` that evaluates modules; the main process drives
+ * it through the RPC peer.
+ */
+export function createNodeRpcRuntime(): NodeRpcHost {
+  const { port1: rpcServerPort, port2: rpcWorkerPort } = new MessageChannel();
+
+  const worker = new Worker(new URL("./node-worker.mjs", import.meta.url), {
+    workerData: {
+      mode: "dev",
+      rpcPort: rpcWorkerPort,
+    },
+
+    transferList: [rpcWorkerPort],
+  });
+
+  const peer = new RpcPeer(rpcServerPort, "main");
+
+  peer.start();
+
+  const workerFailed = (error: Error) => {
+    peer.destroy(error);
+  };
+
+  worker.on("error", workerFailed);
+
+  worker.on("exit", (code) => {
+    if (code !== 0) {
+      workerFailed(new Error(`Backend worker exited with code ${code}`));
+    }
+  });
+
+  return {
+    worker,
+    peer,
+
+    async close() {
+      rpcServerPort.close();
+      await worker.terminate();
+    },
   };
 }

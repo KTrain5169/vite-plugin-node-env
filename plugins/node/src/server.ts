@@ -1,8 +1,10 @@
-import { DevEnvironment, type ResolvedConfig } from "vite";
+import { DevEnvironment, createRunnableDevEnvironment, type ResolvedConfig } from "vite";
 
-import { createNodeRuntime } from "./node-runtime.ts";
+import { createNodeRuntime, createNodeRpcRuntime, type NodeRpcHost } from "./node-runtime.ts";
 
 import { createNodeHotChannel } from "./node-hot-channel.ts";
+
+import { createWorkerProxyModuleRunner } from "./node-rpc.ts";
 
 import {
   virtualModuleId,
@@ -11,14 +13,49 @@ import {
   type RequestMessage,
 } from "./consts.ts";
 
+export interface NodeEnvironmentOptions {
+  /**
+   * `backend`: run the plugin's own fetch-style `entry` in the worker and
+   * serve requests through the plugin's middleware.
+   *
+   * `runtime`: no entry of our own. The environment is a
+   * `RunnableDevEnvironment` whose `runner` evaluates modules inside the
+   * worker; it is driven through `environment.runner.import()`, usually by
+   * a framework plugin's dev middleware.
+   */
+  mode: "backend" | "runtime";
+}
+
+export interface NodeEnvironmentHost {
+  environment: DevEnvironment;
+  /** Backend mode: request-serving worker runtime. */
+  runtime?: NodeRuntime;
+  /** Runtime mode: worker hosting module evaluation. */
+  rpcHost?: NodeRpcHost;
+}
+
 export function createNodeEnvironment(
   name: string,
   config: ResolvedConfig,
   context: CreateDevEnvironmentContext,
-): {
-  environment: DevEnvironment;
-  runtime: NodeRuntime;
-} {
+  options: NodeEnvironmentOptions,
+): NodeEnvironmentHost {
+  if (options.mode === "runtime") {
+    const rpcHost = createNodeRpcRuntime();
+
+    const environment = createRunnableDevEnvironment(name, config, {
+      ...context,
+      hot: true,
+      transport: createNodeHotChannel(rpcHost.worker),
+      runner: () => createWorkerProxyModuleRunner(rpcHost.peer),
+    });
+
+    return {
+      environment,
+      rpcHost,
+    };
+  }
+
   const node = createNodeRuntime({
     entry: virtualModuleId,
     mode: "dev",
